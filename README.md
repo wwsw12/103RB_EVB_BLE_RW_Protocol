@@ -1,6 +1,8 @@
 # STM32F103RB EVB 블루투스 양방향 제어 (R/W 프로토콜)
 
-**스마트폰 앱 ↔ HM-10(BLE) ↔ USART1로 직접 설계한 바이너리 패킷을 주고받아, EVB 보드의 센서 7종을 읽고(R) 출력 소자 6종을 제어(W)하는 인터럽트 기반 펌웨어**
+**교재 마지막 장의 '데모2' 과제를 직접 구현한 프로젝트 — 교재가 제공한 통신 프로토콜(STX~ETX 바이너리 패킷)로 스마트폰 앱 ↔ HM-10(BLE) ↔ USART1을 연결해, EVB 보드의 센서 7종을 읽고(R) 출력 소자 6종을 제어(W)하는 인터럽트 기반 펌웨어**
+
+<sub>교재 제공: 패킷 형식·장치 문자·데이터 형식(프로토콜 표), EVB 보드 · 직접 구현: 패킷 송수신과 해석, 장치별 제어, 인터럽트·DMA·타이머 구성 (`main.c` USER CODE)</sub>
 
 ![MCU](https://img.shields.io/badge/MCU-STM32F103RB-03234B)
 ![Board](https://img.shields.io/badge/Board-NUCLEO--F103RB_+_EVB-03234B)
@@ -28,7 +30,7 @@
 
 ## 시스템 구조
 
-![시스템 구조](docs/images/system_architecture.png)
+![시스템 구조](docs/images/readme/system_architecture.png)
 
 <sub>TIM2 1 ms 인터럽트 → 50 ms마다 R 패킷 1개 송신 (장치 7개 순환, 장치당 350 ms) · USART1 수신 인터럽트로 W 패킷 조립 → 메인 루프에서 해석</sub>
 
@@ -36,7 +38,7 @@
 
 ## 통신 프로토콜
 
-![패킷 구조](docs/images/protocol_frame.png)
+![R·W 데이터 방향](docs/images/readme/protocol_frame.png)
 
 | DEVICE | 장치 | R/W | 크기 | 형식 |
 |:---:|---|:---:|:---:|---|
@@ -54,7 +56,7 @@
 
 ## 하드웨어
 
-![EVB 연결도](docs/images/hardware_block.png)
+![입력 → STM32 → 출력](docs/images/readme/hardware_block.png)
 
 <!-- 사진 자리: EVB 보드 전체 사진 + 주요 소자 클로즈업 (CLCD, 서보, RGB LED, HM-10) -->
 
