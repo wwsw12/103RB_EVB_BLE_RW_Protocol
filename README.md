@@ -37,6 +37,21 @@
 
 → 개발 목적, 실행 흐름, 모듈 구성: [01_system_architecture.md](docs/01_system_architecture.md)
 
+## 하드웨어
+
+![입력 → STM32 → 출력](docs/images/readme/hardware_block.png)
+
+**3.3 V MCU로 5 V 소자 구동 — 데이터시트로 확인한 것**
+
+| 소자 (전원) | 연결 | 확인 내용 |
+|---|---|---|
+| CLCD (5 V) | GPIO 4-bit | 입력 High 기준 2.2 V < 3.3 V, R/W GND 고정 → MCU로 5 V 역입력 없음 |
+| DAC7512 (5 V) | SPI2 | 입력 High 기준 2.4 V < 3.3 V, 하강 에지 샘플링 = SPI Mode 1 |
+| 서보 (5 V) | TIM4 → NPN Q2 + 10 kΩ 풀업 | 트랜지스터가 신호를 반전 → **TIM 출력 극성 LOW로 보정** |
+| LED · RGB (5 V) | GPIO / TIM3 → ULN2003 | 싱크 드라이버, 핀 High = 켜짐 |
+
+→ 핀 할당, 소자별 회로, 용어 풀이: [02_hardware.md](docs/02_hardware.md)
+
 ## 통신 프로토콜
 
 ![R·W 데이터 방향](docs/images/readme/protocol_frame.png)
@@ -53,22 +68,9 @@
 | `M` | RGB LED | W | 3 | 0~255 × 3 |
 | `1` / `2` | CLCD 1줄 / 2줄 | W | 16 | 문자열 |
 
+→ 주변장치 설정(클럭, 타이머, UART, ADC+DMA): [03_cubemx_configuration.md](docs/03_cubemx_configuration.md)
+
 → 패킷 조립·해석 코드, 장치별 변환식: [04_firmware_implementation.md](docs/04_firmware_implementation.md)
-
-## 하드웨어
-
-![입력 → STM32 → 출력](docs/images/readme/hardware_block.png)
-
-**3.3 V MCU로 5 V 소자 구동 — 데이터시트로 확인한 것**
-
-| 소자 (전원) | 연결 | 확인 내용 |
-|---|---|---|
-| CLCD (5 V) | GPIO 4-bit | 입력 High 기준 2.2 V < 3.3 V, R/W GND 고정 → MCU로 5 V 역입력 없음 |
-| DAC7512 (5 V) | SPI2 | 입력 High 기준 2.4 V < 3.3 V, 하강 에지 샘플링 = SPI Mode 1 |
-| 서보 (5 V) | TIM4 → NPN Q2 + 10 kΩ 풀업 | 트랜지스터가 신호를 반전 → **TIM 출력 극성 LOW로 보정** |
-| LED · RGB (5 V) | GPIO / TIM3 → ULN2003 | 싱크 드라이버, 핀 High = 켜짐 |
-
-→ 핀 할당, 소자별 회로, 용어 풀이: [02_hardware.md](docs/02_hardware.md)
 
 ## 동작 데모
 
