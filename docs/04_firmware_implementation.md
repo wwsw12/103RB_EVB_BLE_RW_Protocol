@@ -46,13 +46,13 @@
 | `'E'` | 엔코더 | R/W | 4 | int |
 | `'S'` | 서보모터 | W | 2 | short (−90~90°) — 교재 표는 R/W, 이 구현은 W만 |
 | `'I'` | HDC1080 온습도 | R | 4 + 1 | float 온도 + unsigned char 습도 |
-| `'D'` | DAC | W | 2 | unsigned short (0~4095) |
-| `'L'` | LED 4개 | R/W | 4 | 각 1바이트 (0x00 OFF / 0x01 ON) |
-| `'M'` | RGB LED | W | 3 | 각 1바이트 (0~255) |
-| `'R'` | 택트 스위치 | R | 4 | 각 1바이트 (0x00 / 0x01) |
+| `'D'` | DAC | W | 2 | unsigned short (0~4095) — 교재 표는 R/W, 이 구현은 W만 |
+| `'L'` | LED 4개 | R/W | 4 | LED0 → LED1 → LED2 → LED3 순서, 각 1바이트 (0x00 OFF / 0x01 ON) |
+| `'M'` | RGB LED | W | 3 | R → G → B 순서, 각 1바이트 unsigned char (0~255) |
+| `'R'` | 택트 스위치 | R | 4 | 스위치 4개, 각 1바이트 (0x00 / 0x01) |
 | `'1'` / `'2'` | CLCD 1줄 / 2줄 | W | 16 | 문자열 |
 
-<!-- 사진 자리: 원본 프로토콜 표 (docs/images/protocol_table.png) -->
+> 근거: 교재 '데모2' 〈표 3〉 통신 프로토콜. 원본 표는 교재 저작물이라 저장소에 싣지 않고 위 표로 다시 정리했습니다.
 
 ### 1-3. float를 바이트로 보내는 방법
 
@@ -123,18 +123,35 @@ if (act_mode == 1) {
 
 ```c
 // main.c : USART1 1바이트 수신 완료 콜백
-if (rx_index1 == 0) {
-    if (rx_data1 == 0x02) rx_buffer1[rx_index1++] = rx_data1;   // STX가 올 때까지 버림
+if (RX_flag1 == 1) {
+    // 메인 루프가 이전 패킷을 해석 중 → 버퍼를 덮어쓰지 않도록 버림
+} else if (rx_index1 == 0) {
+    if (rx_data1 == 0x02) {                                      // STX가 올 때까지 버림
+        rx_buffer1[rx_index1++] = rx_data1;
+        calculate_cout = 0;                                      // 새 패킷 → 길이 계산 상태 초기화
+    }
 } else {
     rx_buffer1[rx_index1++] = rx_data1;
-    if ((rx_data1 == 0x03) && (rx_index1 >= 5)) RX_flag1 = 1;    // ETX → 패킷 완성
+    if (rx_index1 >= 4) {                                        // DATASIZE까지 받음
+        if (calculate_cout == 0) {
+            packet_length = rx_buffer1[3] + 4;                   // ETX가 있어야 할 인덱스
+            calculate_cout = 1;
+            if (packet_length >= sizeof(rx_buffer1)) { rx_index1 = 0; calculate_cout = 0; }
+        }
+        if ((calculate_cout == 1) && (rx_index1 == packet_length + 1)) {
+            if (rx_buffer1[packet_length] == 0x03) RX_flag1 = 1; // ETX 자리 확인 → 패킷 완성
+            else rx_index1 = 0;                                  // 형식 오류 → 다시 STX부터
+            calculate_cout = 0;
+        }
+    }
 }
 HAL_UART_Receive_IT(&huart1, &rx_data1, 1);                      // 다음 1바이트 수신 재시작
 ```
 
 - STX 전에 들어온 쓰레기 바이트는 버립니다.
-- `rx_index1 >= 5` 조건은 최소 프레임(STX, CMD, DEVICE, SIZE, ETX)보다 짧은 위치에서 0x03이 나와도 패킷 끝으로 보지 않게 하기 위해서입니다.
-- **한계:** DATA 안에 0x03이 들어 있으면(예: 엔코더 값 3, float의 일부 바이트) 거기서 패킷이 끝난 것으로 판단합니다 → [05 문서](05_troubleshooting.md) 이슈 1번.
+- 패킷 끝은 **0x03 값이 아니라 DATASIZE로 정합니다.** DATA 안에 0x03이 들어 있어도(예: 엔코더 값 3, float의 일부 바이트, 문자열) 잘리지 않습니다.
+- ETX는 계산한 자리까지 **다 받은 순간에만** 확인합니다. 그 전에 확인하면 버퍼에 남은 이전 패킷의 0x03을 읽을 수 있습니다.
+- 처음에는 "0x03이 오면 끝" 방식이었고, 이 때문에 CLCD 문자열이 표시되지 않는 문제를 겪고 바꿨습니다 → [05 문서](05_troubleshooting.md) 1-1절.
 
 ### 3-2. 메인 루프 — 해석과 장치 제어
 
@@ -150,8 +167,12 @@ if (RX_flag1 == 1) {
     case 'M':  TIM3 CCR1~3 ← B, R, G
     case '1', '2': CLCD 1줄 / 2줄에 문자열 표시
     }
+    rx_index1 = 0;                    // 해석이 끝난 뒤에 수신 재개
+    RX_flag1 = 0;                     // (인덱스 먼저, 플래그 나중)
 }
 ```
+
+- 수신 재개(`RX_flag1 = 0`)를 해석이 끝난 뒤에 해서, 해석하는 동안 ISR이 같은 버퍼를 덮어쓰지 않습니다. 이 순서는 RGB 제어가 안 되던 문제를 겪고 정했습니다 → [05 문서](05_troubleshooting.md) 1-2절.
 
 ### 3-3. 장치별 변환
 

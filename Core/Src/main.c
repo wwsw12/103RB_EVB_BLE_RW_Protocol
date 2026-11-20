@@ -158,8 +158,8 @@ uint16_t gtimepulse[3];
 uint32_t TimerCount;
 char act_mode = 0;
 
-uint8_t packet_length;
-uint8_t calculate_cout =0;
+uint16_t packet_length = 0;  // ETX가 있어야 할 인덱스 = 길이 + 4
+uint8_t calculate_cout = 0;  // 길이 바이트로 ETX 위치를 계산했는지
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -197,6 +197,17 @@ void DAC7512_write (unsigned short data)
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+// R 패킷(MCU → 앱) 확인용 디버그 로그: 1이면 보낸 패킷을 USART2(Tera Term)에 16진수로 출력
+// 평소에는 0 (50 ms마다 출력되면 W 패킷 로그가 묻힘)
+#define R_LOG 0
+static void R_LOG_PRINT(uint8_t *buf, uint8_t len)
+{
+#if R_LOG
+	printf("R> ");
+	for (int i = 0; i < len; i++) printf("%02X ", buf[i]);
+	printf("\n");
+#endif
+}
 
 /* USER CODE END 0 */
 
@@ -394,6 +405,7 @@ int main(void)
 				 sendbuf[P_index++] = ADC_value[0] >> 8;
 				 sendbuf[P_index++] = ETX;
 				 HAL_UART_Transmit(&huart1, sendbuf, P_index, 50);
+				 R_LOG_PRINT(sendbuf, P_index);
 				 count++;
 				 break;
 
@@ -407,6 +419,7 @@ int main(void)
 				 sendbuf[P_index++] = ADC_value[1] >> 8;
 				 sendbuf[P_index++] = ETX;
 				 HAL_UART_Transmit(&huart1, sendbuf, P_index, 50);
+				 R_LOG_PRINT(sendbuf, P_index);
 				 count++;
 				 break;
 
@@ -422,6 +435,7 @@ int main(void)
 				 sendbuf[P_index++] = TC1047_temp_data >> 24;
 				 sendbuf[P_index++] = ETX;
 				 HAL_UART_Transmit(&huart1, sendbuf, P_index, 50);
+				 R_LOG_PRINT(sendbuf, P_index);
 				 count++;
 				 break;
 
@@ -438,6 +452,7 @@ int main(void)
 				 sendbuf[P_index++] = humi;
 				 sendbuf[P_index++] = ETX;
 				 HAL_UART_Transmit(&huart1, sendbuf, P_index, 50);
+				 R_LOG_PRINT(sendbuf, P_index);
 				 count++;
 				 break;
 
@@ -453,6 +468,7 @@ int main(void)
 				 sendbuf[P_index++] = T_SW[0];
 				 sendbuf[P_index++] = ETX;
 				 HAL_UART_Transmit(&huart1, sendbuf, P_index, 50);
+				 R_LOG_PRINT(sendbuf, P_index);
 				 count++;
 				 break;
 
@@ -468,6 +484,7 @@ int main(void)
 				 sendbuf[P_index++] = LED_data[0];
 				 sendbuf[P_index++] = ETX;
 				 HAL_UART_Transmit(&huart1, sendbuf, P_index, 50);
+				 R_LOG_PRINT(sendbuf, P_index);
 				 count++;
 				 break;
 
@@ -483,6 +500,7 @@ int main(void)
 				 sendbuf[P_index++] = E_count >> 24;
 				 sendbuf[P_index++] = ETX;
 				 HAL_UART_Transmit(&huart1, sendbuf, P_index, 50);
+				 R_LOG_PRINT(sendbuf, P_index);
 				 count = 0;
 				 break;
 
@@ -502,8 +520,8 @@ int main(void)
 			  printf("%02X ", rx_buffer1[i]);
 		  }
 		  printf("\n");
-		  rx_index1 = 0;
-		  RX_flag1 = 0;
+		  // rx_index1 = 0, RX_flag1 = 0은 해석이 끝난 뒤(switch 아래)로 옮김
+		  // → 해석하는 동안 ISR이 같은 버퍼에 다음 패킷을 덮어쓰지 않음
 
 		  if(rx_buffer1[P_index++] == STX) printf("STX_OK\n");
 		  if(rx_buffer1[P_index++] == W) printf("W_OK\n");
@@ -607,7 +625,7 @@ int main(void)
 				j = 0;
 				if(rx_buffer1[P_index++] == 16) printf("DATABYTE_OK\n");
 				if(rx_buffer1[P_index + rx_buffer1[P_index-1]] == ETX) printf("ETX_OK\n");
-				for(int i = 15; i > 0; i--)
+				for(int i = 15; i >= 0; i--)
 				{
 					CLCD1_data[j++] = rx_buffer1[P_index + i];
 				}
@@ -622,7 +640,7 @@ int main(void)
 				j=0;
 				if(rx_buffer1[P_index++] == 16) printf("DATABYTE_OK\n");
 				if(rx_buffer1[P_index + rx_buffer1[P_index-1]] == ETX) printf("ETX_OK\n");
-				for(int i = 15; i > 0; i--)
+				for(int i = 15; i >= 0; i--)
 				{
 					CLCD2_data[j++] = rx_buffer1[P_index + i];
 				}
@@ -635,6 +653,10 @@ int main(void)
 				printf("NO_DEVICE\n");
 				break;
 		  }
+
+		  // 해석이 끝난 뒤에 다음 패킷 수신 허용 (순서 중요: 인덱스 먼저, 플래그 나중)
+		  rx_index1 = 0;
+		  RX_flag1 = 0;
 	  }
     /* USER CODE END WHILE */
 
@@ -1169,20 +1191,50 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == USART1)
 	{
-	    if (rx_index1 == 0)
+	    if (RX_flag1 == 1)
+	    {
+	        // 메인 루프가 아직 이전 패킷을 해석 중 → 버퍼를 덮어쓰지 않도록 이 바이트는 버림
+	    }
+	    else if (rx_index1 == 0)
 	    {
 	        if (rx_data1 == 0x02)
 	        {
 	            rx_buffer1[rx_index1++] = rx_data1;
+	            calculate_cout = 0; // 새 패킷 시작 → 이전 패킷의 길이 계산 상태를 지움
 	        }
 	    }
 	    else
 	    {
 	        rx_buffer1[rx_index1++] = rx_data1;
 
-	        if ((rx_data1 == 0x03) && (rx_index1>=5)) //둘다 0이 아니여서
+	        // 데이터 안에 0x03이 섞여도 잘리지 않도록, 길이 바이트(rx_buffer1[3])로 ETX 위치를 계산
+	        if (rx_index1 >= 4)
 	        {
-	            RX_flag1 = 1;
+	            if (calculate_cout == 0)
+	            {
+	                packet_length = rx_buffer1[3] + 4; // STX, R/W, 장치, 길이 4바이트 + 데이터
+	                calculate_cout = 1;
+
+	                if (packet_length >= sizeof(rx_buffer1)) // 길이가 버퍼보다 크면 버리고 다시 STX부터
+	                {
+	                    rx_index1 = 0;
+	                    calculate_cout = 0;
+	                }
+	            }
+
+	            // ETX 자리까지 다 받았을 때만 판단 (이전 패킷의 값이 남아 있는 칸을 읽지 않도록)
+	            if ((calculate_cout == 1) && (rx_index1 == packet_length + 1))
+	            {
+	                if (rx_buffer1[packet_length] == 0x03)
+	                {
+	                    RX_flag1 = 1;
+	                }
+	                else
+	                {
+	                    rx_index1 = 0; // ETX 자리가 아니면 버리고 다시 STX부터
+	                }
+	                calculate_cout = 0;
+	            }
 	        }
 	    }
 	    HAL_UART_Receive_IT(&huart1, &rx_data1, 1);

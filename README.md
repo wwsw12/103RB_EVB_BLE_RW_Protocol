@@ -14,13 +14,10 @@
 ![SPI](https://img.shields.io/badge/SPI-DAC7512-2ea043)
 ![I2C](https://img.shields.io/badge/I2C-HDC1080-2ea043)
 
-<!--
-대표 사진·영상 자리 (사진을 받으면 아래 표로 교체)
 <table><tr>
-<td width="50%"><img src="docs/images/readme/hero_board.jpg" width="100%"></td>
-<td width="50%"><img src="docs/images/readme/app_rw.gif" width="100%"><br><sub>앱에서 서보·RGB LED 제어 → 보드 반응</sub></td>
+<td width="52%"><img src="docs/images/readme/hero_board.jpg" width="100%"><br><sub>NUCLEO-F103RB + EVB 보드 — 앱에서 보낸 문자열이 CLCD에 표시되고 LED 4개가 켜진 상태</sub></td>
+<td width="48%"><img src="docs/images/readme/r_sync.gif" width="100%"><br><sub>R: 보드 센서를 건드리면 앱 값이 따라 바뀜 (보드 영상과 앱 화면 녹화를 같은 순간에 맞춰 합침)</sub></td>
 </tr></table>
--->
 
 | 읽기 장치 (R) | 쓰기 장치 (W) | 사용한 인터럽트 | Flash / RAM |
 |:---:|:---:|:---:|:---:|
@@ -58,8 +55,6 @@
 
 ![입력 → STM32 → 출력](docs/images/readme/hardware_block.png)
 
-<!-- 사진 자리: EVB 보드 전체 사진 + 주요 소자 클로즈업 (CLCD, 서보, RGB LED, HM-10) -->
-
 **3.3 V MCU로 5 V 소자 구동 — 데이터시트로 확인한 것**
 
 | 소자 (전원) | 연결 | 확인 내용 |
@@ -73,25 +68,34 @@
 
 ## 동작 데모
 
-<!--
-영상 자리 (받으면 GIF로 변환해 103RB 프로젝트처럼 배치)
-① 앱 R 화면: 가변저항을 돌리면 앱 값이 바뀜 (보드 + 앱 동시 촬영 또는 시간 맞춰 합침)
-② 앱 W: 서보 −90° / 0° / 90°
-③ 앱 W: RGB LED 색 변경, LED 4개 켜기/끄기
-④ 앱 W: CLCD 문자열 표시
-⑤ Tera Term: W 패킷 16진수 덤프 + STX_OK ~ ETX_OK 로그
--->
+### ① R — 보드 → 앱 (센서 7종 중 5종)
 
-> 데모 영상은 준비 중입니다.
+<img src="docs/images/readme/r_sync.gif" width="540"><br>
+<sub>왼쪽: 실제 동작 · 오른쪽: 같은 시점의 앱 R 화면 (두 녹화를 스위치 누름 순간에 맞춰 합침, 주황 테두리 = 지금 바뀌는 값)<br>
+가변저항 <code>0 ↔ 4095</code> · 조도 가림 약 <code>3500 → 600</code> · TC1047 손가락 <code>22.6 → 25.6</code> °C · HDC1080 손끝 습도 <code>42 → 88</code> % · SW1~SW4<br>
+값은 동작보다 최대 약 1 s 늦게 바뀜: 장치 7개를 50 ms씩 돌아가며 보내 장치당 350 ms 주기 + 센서 자체 반응 시간</sub>
+
+### ② W — 앱 → 보드 (서보 · CLCD · RGB LED)
+
+<img src="docs/images/readme/w_sync.gif" width="720"><br>
+<sub>왼쪽: 실제 동작 · 오른쪽: 같은 시점의 앱 W 화면 (두 녹화를 서보 SEND 순간에 맞춰 합침)<br>
+서보 <code>90 → −90 → 0</code>° · CLCD <code>test1</code> / <code>test2</code> · 컬러 휠로 RGB LED 색 변경</sub>
+
+### ③ W 패킷 — 앱 SEND ↔ MCU가 받은 16진수
+
+<img src="docs/images/readme/w_packet_log.gif" width="640"><br>
+<sub>왼쪽: 앱에서 SEND · 오른쪽: 같은 시점에 MCU가 받은 패킷을 USART2로 출력한 Tera Term 로그<br>
+<code>02 57 53 02 1E 00 03</code> = STX · 'W' · 서보 'S' · 길이 2 · 30(0x001E, 하위 바이트 먼저) · ETX<br>
+CLCD 문자열은 앱이 거꾸로 보냄(<code>70 6F … 61</code>) → 펌웨어가 뒤집어 <code>abcdefghijklmnop</code> 표시</sub>
 
 ## 리뷰로 찾은 개선점
 
-코드와 데이터시트를 다시 검토해 찾은 이슈입니다 (아직 수정 전).
+코드와 데이터시트를 다시 검토해 찾은 이슈입니다. ✅는 보드에서 문제를 겪고 수정한 항목, 나머지는 아직 수정 전입니다.
 
 | 우선순위 | 이슈 | 제안 |
 |---|---|---|
-| 높음 | ETX 값(0x03)으로 패킷 끝을 판단 → DATA에 0x03이 있으면 잘림 | DATASIZE 기반 상태 머신 |
-| 높음 | 수신 버퍼 범위 검사 없음, 해석 중 ISR이 같은 버퍼에 씀 | 범위 검사 + 더블 버퍼 |
+| ✅ 수정 | ETX 값(0x03)으로 패킷 끝을 판단 → DATA에 0x03이 있으면 잘림 (CLCD 미표시 문제로 발견) | DATASIZE로 ETX 위치 계산 후 검증 ([05 문서 1-1절](docs/05_troubleshooting.md)) |
+| ✅ 수정 | 해석 중 ISR이 같은 버퍼에 씀 → 연속 패킷이 깨짐 (RGB 제어 불가 문제로 발견) | 해석이 끝난 뒤 수신 재개 ([05 문서 1-2절](docs/05_troubleshooting.md)) |
 | 중간 | DAC 전압 로그가 3.3 V 기준 (실제 기준 = E5V) | 실측값으로 계산 |
 | 중간 | HDC1080 히터 켜짐, 매 루프 15 ms blocking 측정 | 히터 끄기, 측정 주기 분리 |
 
