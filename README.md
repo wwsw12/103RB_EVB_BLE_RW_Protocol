@@ -14,10 +14,14 @@
 ![SPI](https://img.shields.io/badge/SPI-DAC7512-2ea043)
 ![I2C](https://img.shields.io/badge/I2C-HDC1080-2ea043)
 
-<table><tr>
-<td width="52%"><img src="docs/images/readme/hero_board.jpg" width="100%"><br><sub>NUCLEO-F103RB + EVB 보드 — 앱에서 보낸 문자열이 CLCD에 표시되고 LED 4개가 켜진 상태</sub></td>
-<td width="48%"><img src="docs/images/readme/r_sync.gif" width="100%"><br><sub>R: 보드 센서를 건드리면 앱 값이 따라 바뀜 (보드 영상과 앱 화면 녹화를 같은 순간에 맞춰 합침)</sub></td>
-</tr></table>
+<table>
+<tr><td colspan="2"><img src="docs/images/readme/hero_board.jpg" width="100%"><br><sub>NUCLEO-F103RB + EVB 보드 — 앱에서 보낸 문자열이 CLCD에 표시되고 LED 4개가 켜진 상태</sub></td></tr>
+<tr>
+<td width="40%" valign="top"><img src="docs/images/readme/r_sync.gif" width="100%"><br><sub><b>R</b> (보드 → 앱): 보드 센서를 건드리면 앱 값이 따라 바뀜</sub></td>
+<td width="60%" valign="top"><img src="docs/images/readme/w_sync.gif" width="100%"><br><sub><b>W</b> (앱 → 보드): 앱에서 보낸 값대로 서보·CLCD·RGB LED가 바뀜</sub></td>
+</tr>
+<tr><td colspan="2" align="center"><sub>보드 영상과 앱 화면 녹화를 같은 순간에 맞춰 합침</sub></td></tr>
+</table>
 
 | 읽기 장치 (R) | 쓰기 장치 (W) | 사용한 인터럽트 | Flash / RAM |
 |:---:|:---:|:---:|:---:|
